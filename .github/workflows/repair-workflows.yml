@@ -46,6 +46,10 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install Python dependencies
+        working-directory: target
+        run: pip install requests
+
       - name: Run Copilot-free repair agent (Mistral)
         if: steps.check_script.outputs.script_exists == 'true'
         env:

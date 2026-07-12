@@ -156,11 +156,24 @@ def complete(system, user, attempts=5):
 
 
 def fenced(text):
-    m = re.search(r"```ya?ml\n(.*?)```", text, re.S)
-    if m:
-        return m.group(1)
-    m = re.search(r"```\n(.*?)```", text, re.S)
-    return m.group(1) if m else text
+    """Extract the LAST/most-complete ```yaml fenced block. Fall back to first.
+    If none, return ''. Never return prose or a partial non-YAML blob."""
+    blocks = re.findall(r"```ya?ml\n(.*?)```", text, re.S)
+    if not blocks:
+        return ""
+    # pick the longest block (LLMs sometimes wrap a summary then the full file)
+    return max(blocks, key=len).strip()
+
+
+def looks_like_full_workflow(orig, new):
+    """Guard: reject edits that would truncate/delete the workflow.
+    The new YAML must contain the structural anchors and not be a tiny
+    fraction of the original size."""
+    if not new or "on:" not in new or "jobs:" not in new:
+        return False
+    if len(new.strip()) < 0.6 * len(orig.strip()):
+        return False
+    return True
 
 
 def main():
@@ -188,12 +201,14 @@ def main():
             print(f"[repair] {wf} appears green, skipping")
             continue
         system = (
-            "You repair GitHub Actions workflow YAML. You receive a workflow file "
-            "and its latest failing run log. Return ONLY the corrected full YAML inside "
-            "a ```yaml fenced block. Make minimal surgical edits. Never add or enable "
-            "GitHub Copilot. Do NOT invent secret values. If a fix requires a secret you "
-            "do not have, return the original file unchanged and instead output a separate "
-            "section starting with 'NEED_SECRET:' followed by which secret and where."
+            "You are a GitHub Actions YAML repair tool. INPUT: a workflow file and its "
+            "latest failing run log. OUTPUT RULES: You MUST respond with EXACTLY one fenced "
+            "code block tagged ```yaml containing the COMPLETE, valid, corrected workflow "
+            "file (every line, not a diff, not a partial snippet). Preserve ALL original "
+            "jobs, steps, and structure; apply only the minimal surgical fix for the failure. "
+            "Do NOT add GitHub Copilot. Do NOT delete steps. Do NOT write any prose, explanation, "
+            "or text outside the ```yaml block. If you cannot fix it without a secret you lack, "
+            "return the ORIGINAL file verbatim inside the ```yaml block."
         )
         user = f"WORKFLOW FILE: .github/workflows/{wf}\n\n```yaml\n{raw_text}\n```\n\nLATEST RUN LOG:\n{logs}\n"
         try:
@@ -201,13 +216,15 @@ def main():
         except Exception as e:
             print(f"[repair] {wf}: LLM call failed ({e}); skipping")
             continue
-        if "NEED_SECRET:" in resp:
-            issues.append(f"{wf}: {resp.split('NEED_SECRET:', 1)[1].strip()[:300]}")
-            continue
         new_yaml = fenced(resp).strip()
-        if new_yaml and new_yaml != raw_text.strip():
-            fixes[wf] = new_yaml
-            print(f"[repair] {wf}: produced fix")
+        if not new_yaml or new_yaml == raw_text.strip():
+            # no change (LLM returned original or refused) -> skip
+            continue
+        if not looks_like_full_workflow(raw_text, new_yaml):
+            print(f"[repair] {wf}: LLM output failed sanity guard (truncated/incomplete); skipping")
+            continue
+        fixes[wf] = new_yaml
+        print(f"[repair] {wf}: produced fix")
 
     if not fixes and not issues:
         print("[repair] nothing to do")

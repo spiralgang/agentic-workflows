@@ -23,8 +23,10 @@ API = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 KEY = os.environ["OPENROUTER_API_KEY"]
 MODEL = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
 OWNER = os.environ["REPO_OWNER"]
-REPO = os.environ["REPO_NAME"]
-TARGET = os.environ.get("TARGET_REPO", f"{OWNER}/{REPO}")
+TARGET = os.environ.get("TARGET_REPO", f"{OWNER}/{os.environ.get('REPO_NAME', '')}")
+# accept either explicit TARGET_REPO (owner/repo) or REPO_OWNER + REPO_NAME
+if "/" not in TARGET:
+    TARGET = f"{OWNER}/{os.environ.get('REPO_NAME', TARGET)}"
 GH_PAT = os.environ["GH_PAT"]
 API_HEADERS = {
     "Authorization": f"Bearer {GH_PAT}",

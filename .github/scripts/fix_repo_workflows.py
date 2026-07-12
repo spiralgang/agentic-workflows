@@ -16,12 +16,13 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 
 API = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 KEY = os.environ["OPENROUTER_API_KEY"]
-MODEL = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
+MODEL = os.environ.get("OPENROUTER_MODEL", "cognitivecomputations/dolphin-mistral-24b-venice-edition:free")
 OWNER = os.environ["REPO_OWNER"]
 TARGET = os.environ.get("TARGET_REPO", f"{OWNER}/{os.environ.get('REPO_NAME', '')}")
 # accept either explicit TARGET_REPO (owner/repo) or REPO_OWNER + REPO_NAME
@@ -95,7 +96,7 @@ def run_logs(branch, path):
 # ---- LLM call (OpenAI-compatible chat completions) ----
 
 
-def complete(system, user):
+def complete(system, user, attempts=5):
     payload = {
         "model": MODEL,
         "messages": [
@@ -110,8 +111,20 @@ def complete(system, user):
         data=json.dumps(payload).encode(),
         headers={"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=180) as r:
-        return json.loads(r.read().decode())["choices"][0]["message"]["content"]
+    last_err = None
+    for i in range(attempts):
+        try:
+            with urllib.request.urlopen(req, timeout=180) as r:
+                return json.loads(r.read().decode())["choices"][0]["message"]["content"]
+        except urllib.error.HTTPError as e:
+            last_err = f"OpenRouter HTTP {e.code}: {e.read().decode('utf-8','replace')[:400]}"
+            # 429 (free-tier throttle) and 5xx are transient — back off and retry
+            if e.code not in (429, 500, 502, 503, 504):
+                raise RuntimeError(last_err) from e
+        except Exception as e:  # network/timeout
+            last_err = f"OpenRouter request failed: {e}"
+        time.sleep(2 * (i + 1))
+    raise RuntimeError(f"OpenRouter failed after {attempts} attempts: {last_err}")
 
 
 # ---- Workflow-file editing primitives ----
@@ -167,7 +180,11 @@ def main():
             "section starting with 'NEED_SECRET:' followed by which secret and where."
         )
         user = f"WORKFLOW FILE: .github/workflows/{wf}\n\n```yaml\n{raw}\n```\n\nLATEST RUN LOG:\n{logs}\n"
-        resp = complete(system, user)
+        try:
+            resp = complete(system, user)
+        except Exception as e:
+            print(f"[repair] {wf}: LLM call failed ({e}); skipping")
+            continue
         if "NEED_SECRET:" in resp:
             issues.append(f"{wf}: {resp.split('NEED_SECRET:',1)[1].strip()[:300]}")
             continue

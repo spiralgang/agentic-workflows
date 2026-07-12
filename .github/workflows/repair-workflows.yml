@@ -29,7 +29,19 @@ jobs:
           token: ${{ secrets.GH_PAT }}
           path: target
 
+      - name: Check if repair script exists
+        id: check_script
+        working-directory: target
+        run: |
+          if [ -f ".github/scripts/fix_repo_workflows.py" ]; then
+            echo "script_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "script_exists=false" >> $GITHUB_OUTPUT
+            echo "::error::Repair script not found at .github/scripts/fix_repo_workflows.py"
+          fi
+
       - name: Set up Python
+        if: steps.check_script.outputs.script_exists == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -39,6 +51,7 @@ jobs:
         run: pip install requests
 
       - name: Run Copilot-free repair agent (Mistral)
+        if: steps.check_script.outputs.script_exists == 'true'
         env:
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           MISTRAL_MODEL: ${{ inputs.model }}

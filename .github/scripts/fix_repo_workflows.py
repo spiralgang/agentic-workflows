@@ -46,6 +46,8 @@ TARGET = os.environ.get("TARGET_REPO", f"{OWNER}/{os.environ.get('REPO_NAME', ''
 if "/" not in TARGET:
     TARGET = f"{OWNER}/{os.environ.get('REPO_NAME', TARGET)}"
 GH_PAT = os.environ["GH_PAT"]
+# Dry-run: analyze + report planned fixes; never create a branch/PR.
+DRY_RUN = os.environ.get("DRY_RUN", "").lower() in ("1", "true", "yes")
 API_HEADERS = {
     "Authorization": f"Bearer {GH_PAT}",
     "Accept": "application/vnd.github+json",
@@ -242,6 +244,14 @@ def main():
 
     if not fixes and not issues:
         print("[repair] nothing to do")
+        return
+
+    if DRY_RUN:
+        print(f"[repair] DRY-RUN: {len(fixes)} planned fix(es), {len(issues)} secret-need(s)")
+        for w in fixes:
+            print(f"[repair]   would fix: {w}")
+        for i in issues:
+            print(f"[repair]   needs secret: {i.split(':')[0]}")
         return
 
     branch = f"ci-repair-{os.urandom(3).hex()}"

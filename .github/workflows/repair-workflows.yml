@@ -12,6 +12,11 @@ on:
         required: false
         default: "mistral-large-latest"
         type: string
+      dry_run:
+        description: "If true, analyze and report planned fixes without opening a PR"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -53,6 +58,7 @@ jobs:
           GH_PAT: ${{ secrets.GH_PAT }}
           REPO_OWNER: ${{ github.repository_owner }}
           TARGET_REPO: ${{ inputs.target_repo || github.repository }}
+          DRY_RUN: ${{ inputs.dry_run }}
         working-directory: target
         run: python3 ../scripts/.github/scripts/fix_repo_workflows.py
 

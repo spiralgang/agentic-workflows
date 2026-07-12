@@ -42,7 +42,7 @@ jobs:
         env:
           T: ${{ inputs.target_repo }}
         run: |
-          gh workflow run repair-workflows --repo "${OWNER}/agentic-workflows" \
+          gh workflow run .github/workflows/repair-workflows.yml --repo "${OWNER}/agentic-workflows" \
             -f target_repo="$T" -f model="mistral-large-latest"
           echo "dispatched repair for $T"
 
@@ -70,7 +70,7 @@ jobs:
           while IFS= read -r repo && [ "$n" -lt "$cap" ]; do
             [ -z "$repo" ] && continue
             echo "[sweep] dispatching repair -> $repo"
-            gh workflow run repair-workflows --repo "${OWNER}/agentic-workflows" \
+            gh workflow run .github/workflows/repair-workflows.yml --repo "${OWNER}/agentic-workflows" \
               -f target_repo="$repo" -f model="mistral-large-latest" || echo "[sweep] dispatch failed for $repo"
             n=$((n+1))
             sleep 5   # gentle pace, avoid secondary-rate-limit

@@ -29,18 +29,6 @@ jobs:
           token: ${{ secrets.GH_PAT }}
           path: target
 
-<<<<<<< HEAD
-      - name: Check if repair script exists
-        id: check_script
-        working-directory: target
-        run: |
-          if [ -f ".github/scripts/fix_repo_workflows.py" ]; then
-            echo "script_exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "script_exists=false" >> $GITHUB_OUTPUT
-            echo "::error::Repair script not found at .github/scripts/fix_repo_workflows.py"
-          fi
-=======
       - name: Checkout scripts from agentic-workflows
         uses: actions/checkout@v4
         with:
@@ -48,7 +36,6 @@ jobs:
           token: ${{ secrets.GH_PAT }}
           path: scripts
           sparse-checkout: .github/scripts
->>>>>>> c69010a (fix(repair): checkout scripts from agentic-workflows so the agent runs in any target repo)
 
       - name: Set up Python
         if: steps.check_script.outputs.script_exists == 'true'

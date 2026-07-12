@@ -29,19 +29,26 @@ jobs:
           token: ${{ secrets.GH_PAT }}
           path: target
 
-      - name: Checkout scripts repo
+      - name: Checkout scripts from agentic-workflows
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.repository }}
+          repository: spiralgang/agentic-workflows
+          token: ${{ secrets.GH_PAT }}
           path: scripts
           sparse-checkout: .github/scripts
 
       - name: Set up Python
+        if: steps.check_script.outputs.script_exists == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
+      - name: Install Python dependencies
+        working-directory: target
+        run: pip install requests
+
       - name: Run Copilot-free repair agent (Mistral)
+        if: steps.check_script.outputs.script_exists == 'true'
         env:
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           MISTRAL_MODEL: ${{ inputs.model }}

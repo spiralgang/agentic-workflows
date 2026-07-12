@@ -181,6 +181,7 @@ def main():
         raw = get_file(f".github/workflows/{wf}")
         if not raw:
             continue
+        raw_text = raw[0]
         logs, conclusion = run_logs("main", wf)
         # skip workflows whose latest run fully passed (avoid churn)
         if conclusion == "success":
@@ -194,7 +195,7 @@ def main():
             "do not have, return the original file unchanged and instead output a separate "
             "section starting with 'NEED_SECRET:' followed by which secret and where."
         )
-        user = f"WORKFLOW FILE: .github/workflows/{wf}\n\n```yaml\n{raw}\n```\n\nLATEST RUN LOG:\n{logs}\n"
+        user = f"WORKFLOW FILE: .github/workflows/{wf}\n\n```yaml\n{raw_text}\n```\n\nLATEST RUN LOG:\n{logs}\n"
         try:
             resp = complete(system, user)
         except Exception as e:
@@ -204,7 +205,7 @@ def main():
             issues.append(f"{wf}: {resp.split('NEED_SECRET:', 1)[1].strip()[:300]}")
             continue
         new_yaml = fenced(resp).strip()
-        if new_yaml and new_yaml != raw.strip():
+        if new_yaml and new_yaml != raw_text.strip():
             fixes[wf] = new_yaml
             print(f"[repair] {wf}: produced fix")
 

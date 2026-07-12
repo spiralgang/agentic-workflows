@@ -166,12 +166,26 @@ def fenced(text):
 
 
 def looks_like_full_workflow(orig, new):
-    """Guard: reject edits that would truncate/delete the workflow.
-    The new YAML must contain the structural anchors and not be a tiny
-    fraction of the original size."""
+    """Structural guard: reject edits that are malformed or would drop
+    required top-level workflow keys. Does NOT use a length heuristic
+    (short valid fixes must pass)."""
     if not new or "on:" not in new or "jobs:" not in new:
         return False
-    if len(new.strip()) < 0.6 * len(orig.strip()):
+    try:
+        import yaml
+    except ImportError:
+        return True
+    try:
+        orig_doc = yaml.safe_load(orig)
+        new_doc = yaml.safe_load(new)
+    except Exception:
+        return False
+    if not isinstance(new_doc, dict) or not isinstance(orig_doc, dict):
+        return False
+    for k in orig_doc:
+        if k not in new_doc:
+            return False
+    if not isinstance(new_doc.get("jobs"), dict) or not new_doc.get("jobs"):
         return False
     return True
 

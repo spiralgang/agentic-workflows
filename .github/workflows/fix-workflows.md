@@ -1,5 +1,8 @@
 ---
 on:
+  workflow_run:
+    workflows: ["ci", "CI", "build", "test", "validate"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       target_repo:
@@ -14,15 +17,16 @@ permissions:
   pull-requests: read
 
 engine:
-  id: codex
-  model: anthropic/claude-sonnet-4.5
+  id: custom
+  model: mistral-large-latest
   env:
-    OPENAI_BASE_URL: "https://openrouter.ai/api/v1"
+    OPENAI_BASE_URL: "https://api.mistral.ai/v1"
+    OPENAI_API_KEY: "${MISTRAL_API_KEY}"
 
 network:
   allowed:
     - defaults
-    - openrouter.ai
+    - api.mistral.ai
 
 safe-outputs:
   create-pull-request:

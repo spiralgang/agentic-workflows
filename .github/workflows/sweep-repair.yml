@@ -1,0 +1,78 @@
+name: sweep-repair
+
+# Org-wide CI repair dispatcher (runner-native, Copilot-free).
+# Runs daily + on manual dispatch. Finds spiralgang repos with a failing run
+# in the last 7 days and re-dispatches the per-repo repair-workflows agent to
+# each (cross-repo via workflow_dispatch target_repo). A daily cap bounds the
+# number of LLM calls; manual dispatch can force a single repo.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"   # daily 03:17 UTC
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: "Force-repair one owner/repo (skips the scan + cap)"
+        required: false
+        type: string
+      max_repos:
+        description: "Max repos to dispatch per run"
+        required: false
+        default: "5"
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    env:
+      GH_PAT: ${{ secrets.GH_PAT }}
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      - name: Install gh
+        run: |
+          type gh >/dev/null 2>&1 || (sudo apt-get update -y && sudo apt-get install -y gh)
+          gh --version
+
+      - name: Force-repair single repo (manual)
+        if: ${{ inputs.target_repo != '' }}
+        env:
+          T: ${{ inputs.target_repo }}
+        run: |
+          gh workflow run repair-workflows --repo "${OWNER}/agentic-workflows" \
+            -f target_repo="$T" -f model="mistral-large-latest"
+          echo "dispatched repair for $T"
+
+      - name: Scan org + dispatch repair for failing repos
+        if: ${{ inputs.target_repo == '' }}
+        env:
+          MAX: ${{ inputs.max_repos }}
+        run: |
+          set -euo pipefail
+          cap="${MAX:-5}"
+          n=0
+          # repos that had at least one failed run in the last 7 days
+          repos=$(gh api "orgs/${OWNER}/repos?per_page=100&type=source" \
+            --jq '.[].name' | while read -r r; do
+              fails=$(gh api "repos/${OWNER}/${r}/actions/runs?status=failure&per_page=1&created:>=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)" \
+                --jq '[.workflow_runs[] | select(.event != "workflow_dispatch")] | length' 2>/dev/null || echo 0)
+              if [ "${fails:-0}" -gt 0 ]; then echo "${OWNER}/${r}"; fi
+          done)
+          if [ -z "${repos}" ]; then
+            echo "[sweep] no failing repos in last 7 days"
+            exit 0
+          fi
+          echo "[sweep] failing repos:"
+          echo "${repos}"
+          while IFS= read -r repo && [ "$n" -lt "$cap" ]; do
+            [ -z "$repo" ] && continue
+            echo "[sweep] dispatching repair -> $repo"
+            gh workflow run repair-workflows --repo "${OWNER}/agentic-workflows" \
+              -f target_repo="$repo" -f model="mistral-large-latest" || echo "[sweep] dispatch failed for $repo"
+            n=$((n+1))
+            sleep 5   # gentle pace, avoid secondary-rate-limit
+          done <<< "${repos}"
+          echo "[sweep] dispatched ${n} repair run(s) (cap ${cap})"

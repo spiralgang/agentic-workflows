@@ -1,0 +1,50 @@
+name: repair-workflows
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: "owner/repo to repair (default: this repo)"
+        required: false
+        type: string
+      model:
+        description: "OpenRouter model id"
+        required: false
+        default: "anthropic/claude-3.5-sonnet"
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.target_repo || github.repository }}
+          token: ${{ secrets.GH_PAT }}
+          path: target
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run Copilot-free repair agent
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1"
+          OPENROUTER_MODEL: ${{ inputs.model }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          TARGET_REPO: ${{ inputs.target_repo || github.repository }}
+        working-directory: target
+        run: python3 .github/scripts/fix_repo_workflows.py
+
+      - name: Cleanup
+        if: always()
+        run: true

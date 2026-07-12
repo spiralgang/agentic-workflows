@@ -29,7 +29,7 @@ jobs:
   sweep:
     runs-on: ubuntu-latest
     env:
-      GH_PAT: ${{ secrets.GH_PAT }}
+      GH_TOKEN: ${{ secrets.GH_PAT }}
       OWNER: ${{ github.repository_owner }}
     steps:
       - name: Install gh

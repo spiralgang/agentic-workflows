@@ -29,6 +29,13 @@ jobs:
           token: ${{ secrets.GH_PAT }}
           path: target
 
+      - name: Checkout scripts repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          path: scripts
+          sparse-checkout: .github/scripts
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -43,7 +50,7 @@ jobs:
           REPO_OWNER: ${{ github.repository_owner }}
           TARGET_REPO: ${{ inputs.target_repo || github.repository }}
         working-directory: target
-        run: python3 .github/scripts/fix_repo_workflows.py
+        run: python3 ../scripts/.github/scripts/fix_repo_workflows.py
 
       - name: Cleanup
         if: always()

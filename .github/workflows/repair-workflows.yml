@@ -1,11 +1,9 @@
 name: repair-workflows
 
 # Copilot-free CI repair, reproducibly on GitHub runners.
-# Fires when a workflow fails (debug failed results, feed to agent, fix)
-# and is also runnable manually via workflow_dispatch (optionally cross-repo).
+# Triggered by the org sweep (sweep-repair.yml) which detects failing runs and
+# re-dispatches this workflow per repo. Also runnable manually (cross-repo).
 on:
-  workflow_run:
-    types: [completed]
   workflow_dispatch:
     inputs:
       target_repo:
@@ -25,12 +23,6 @@ permissions:
 
 jobs:
   repair:
-    # only act when the triggering run actually failed (for workflow_run)
-    if: >-
-      ${{
-        github.event_name == 'workflow_dispatch' ||
-        github.event.workflow_run.conclusion == 'failure'
-      }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout target repo
